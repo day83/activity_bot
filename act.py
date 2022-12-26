@@ -15,6 +15,13 @@ from telegram.ext import (ApplicationBuilder, ContextTypes,
 TOKEN = '#### TOKEN #####'
 CHAT_ID_FOR_STAT = '## CHAT ID (INT) ##'
 
+TO_ANSWER_SPAN = 60 # Change to 1 hour after finish testing
+TO_ANSWER_SPAN_CHECK_INTERVAL = 10 # Change to 60 seconds after finish testing
+DELAY_DELETE_QUESTION = 5 # Change to 10 seconds after finish testing
+DELAY_ASK_AGAIN = DELAY_DELETE_QUESTION + 5 # Change to +12 hours
+FIRST_STAT = 30 # To 12 hours
+STAT_INTERVAL = 30 # To 12 hours
+
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -54,8 +61,8 @@ async def ask_question(context):
 
     # Start a job for time check
     context.job_queue.run_repeating(
-        check_time_span, 10, chat_id=job.chat_id, name=str(job.chat_id) + ' check_time_span',
-    ) #<-change delay to 60 seconds after finish testing
+        check_time_span, TO_ANSWER_SPAN_CHECK_INTERVAL, chat_id=job.chat_id, name=str(job.chat_id) + ' check_time_span',
+    )
 
 '''
 Следит за временем и помечает пользователю вопрос как неотвеченный, если он не успевает ответить вовремя
@@ -75,7 +82,7 @@ async def check_time_span(context):
 '''
 Проверка правильности временного диапазона для ответа
 '''
-def time_is_fine(time_span=1*60): #<-change to 1 hour after finish testing
+def time_is_fine(time_span=TO_ANSWER_SPAN):
     date = datetime.datetime.utcnow()
     answer_time = calendar.timegm(date.utctimetuple())
     return time_of_question_asked <= answer_time <= time_of_question_asked + time_span
@@ -160,7 +167,7 @@ async def check_answer(update, context):
 
     return ConversationHandler.END
 
-# this function deletes some messages during the question phase and sends some messages, has to be a separate func in order for it to work with telegram bot asyn jobs
+# This function deletes some messages during the question phase and sends some messages, has to be a separate func in order for it to work with telegram bot asyn jobs
 
 async def delmessage(context):
     job = context.job
@@ -174,14 +181,14 @@ async def delmessage(context):
     await context.bot.send_message(chat_id=job.chat_id, text='Через 12 часов вам снова придёт вопрос, на который вы должны будете верно ответить. После этого вы сможете получить новый вопрос.')
 
 
-# basic start command, just gives you some info about what you're supposed to do
+# Basic start command, just gives you some info about what you're supposed to do
 
 async def start(update, context):
     await context.bot.send_message(chat_id=update.effective_chat.id, text="Доброго времени суток! Этот бот будет использоваться для подтвердждения вашей активности. Используйте команду /question чтобы получить вопрос.")
 
 
-# gives question from file
-# randomly rolls a question from a file, i of question matches i of answer
+# Gives question from file
+# Randomly rolls a question from a file, i of question matches i of answer
 
 async def give_question(update, context):
     global time_of_question_given_out
@@ -213,7 +220,7 @@ async def give_question(update, context):
 
     await context.bot.send_message(chat_id, text="Вот ваш вопрос. У вас есть 10 секунд чтобы запомнить на него ответ.")
 
-    # gives out the question and answer intitially
+    # Gives out the question and answer intitially
     bid = update.effective_message.id + 1
     await context.bot.send_message(chat_id, text='Вопрос: '+rquestion)
     qid = update.effective_message.id + 2
@@ -224,7 +231,7 @@ async def give_question(update, context):
     record['username'] = update.effective_user.username
     record['full_name'] = update.effective_user.full_name
 
-    # question given out
+    # Question given out
     date = datetime.datetime.utcnow()
     time_of_question_given_out = calendar.timegm(date.utctimetuple())
     print("Time of question given out: ", time_of_question_given_out)
@@ -233,17 +240,15 @@ async def give_question(update, context):
 
     is_question_given = True
 
-    delay = 5 # <-change to 10 seconds after finish testing
-    # deletes message with question and answer
+    # Deletes message with question and answer
     context.job_queue.run_once(
-        delmessage, delay, chat_id=chat_id, name=str(chat_id) + ' delmessage',
+        delmessage, DELAY_DELETE_QUESTION, chat_id=chat_id, name=str(chat_id) + ' delmessage',
         data=(bid, qid, aid)
     )
 
-    # asks question once again
-    delay = 5 + 5 # <-change to 10 s. +12 hours after finishing testing
+    # Asks question once again
     context.job_queue.run_once(
-        ask_question, delay, chat_id=chat_id, name=str(chat_id) + ' ask_question',
+        ask_question, DELAY_ASK_AGAIN, chat_id=chat_id, name=str(chat_id) + ' ask_question',
     )
 
 
@@ -305,6 +310,6 @@ if __name__ == '__main__':
     application.add_handler(reply_handler)
 
     # Первичный вариант вывода статистики
-    application.job_queue.run_repeating(send_user_data, interval=30, first=30) #<-change interval to 12 hours and first to 12 hours after finishing testing
+    application.job_queue.run_repeating(send_user_data, interval=STAT_INTERVAL, first=FIRST_STAT)
 
     application.run_polling()
