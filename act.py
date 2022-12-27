@@ -1,6 +1,4 @@
-from email.headerregistry import MessageIDHeader
 import logging
-from operator import is_
 import random
 import time
 import calendar
